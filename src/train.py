@@ -8,6 +8,7 @@ from sklearn.metrics import (
     average_precision_score, confusion_matrix
 )
 from imblearn.over_sampling import SMOTE
+from sklearn.model_selection import RandomizedSearchCV, StratifiedKFold
 
 def load_data(data_dir="data"):
     X_train = pd.read_csv(f"{data_dir}/X_train.csv")
@@ -75,6 +76,32 @@ def train_smote_models(X_train, y_train, X_test, y_test):
         results.append(evaluate(model, X_test, y_test, name))  # evaluate on ORIGINAL test set
     return results, models
 
+def tune_xgboost(X_train, y_train, X_test, y_test):   
+    param_dist = {
+        "n_estimators": [100, 200, 300],
+        "max_depth": [3, 5, 7, 9],
+        "learning_rate": [0.01, 0.05, 0.1, 0.2],
+        "subsample": [0.7, 0.8, 1.0],
+        "colsample_bytree": [0.7, 0.8, 1.0],
+    }
+    base_model = XGBClassifier(
+        scale_pos_weight=(y_train == 0).sum() / (y_train == 1).sum(),
+        random_state=42,
+        eval_metric="logloss",
+    )
+    cv = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
+    search = RandomizedSearchCV(
+        base_model, param_distributions=param_dist, n_iter=20,
+        scoring="average_precision", cv=cv, random_state=42,
+        n_jobs=-1, verbose=1,
+    )
+    search.fit(X_train, y_train)
+    print("\nBest params:", search.best_params_)
+    print("Best CV PR-AUC:", search.best_score_)
+    best_model = search.best_estimator_
+    result = evaluate(best_model, X_test, y_test, "XGBoost (tuned)")
+    return best_model, result
+
 if __name__ == "__main__":
     import os
     os.makedirs("results", exist_ok=True)
@@ -91,3 +118,14 @@ if __name__ == "__main__":
     print("\n\n=== Full Comparison ===")
     print(all_results.to_string(index=False))
     all_results.to_csv("results/model_comparison_full.csv", index=False)
+
+    print("\n########## HYPERPARAMETER TUNING (XGBoost) ##########")
+    best_model, tuned_result = tune_xgboost(X_train, y_train, X_test, y_test)
+
+    # Tuning improved PR-AUC negligibly but tripled false positives at the 0.5 threshold,
+    # so the untuned class_weight XGBoost is the one actually shipped.
+    final_model = cw_models["XGBoost (scale_pos_weight)"]
+
+    os.makedirs("models", exist_ok=True)
+    joblib.dump(final_model, "models/final_model.pkl")
+    print("\nSaved final model (untuned XGBoost, class_weight) to models/final_model.pkl")
