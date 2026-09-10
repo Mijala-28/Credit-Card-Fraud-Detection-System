@@ -55,11 +55,11 @@ Hyperparameter tuning barely improved PR-AUC (a 0.001 difference — basically n
 
 ## Why I Built This
 
-*(write 2-4 sentences here, in your own words — the "annoyed by black-box fraud detection in banking apps" idea we talked through)*
+I've seen fraud detection get mentioned constantly in the news and in banking apps — a transaction gets flagged or blocked instantly, and it's always presented as if "the AI caught it," with no explanation of what's actually happening underneath. I wanted to stop treating that as a black box and actually build a simplified version myself, to understand what's really going on: what features matter, why a model would flag one transaction over another, and why "just make it really accurate" isn't even the right goal for a problem like this. Once I started working with the data, the class imbalance is what really hooked me — seeing that a 99.8% accurate model could still be completely useless only really clicked once I built it and looked at my own results.
 
 ## Limitations & What I'd Do Differently
 
-*(write 2-4 sentences here — mention the PCA-anonymized features limiting real feature engineering, and the idea of testing with a time-based split instead of a random one)*
+The dataset's `V1`–`V28` features are already PCA-transformed for anonymization, which means I couldn't do real feature engineering on raw transaction data — with access to raw fields like merchant category, device information, or transaction location, I'd want to build features from those directly instead of working with pre-transformed ones. I also used a random train/test split, but fraud patterns can shift over time, so a time-based split (training on earlier transactions, testing on later ones) would be a more realistic way to evaluate how this model would actually perform if deployed, since it wouldn't let any future information leak backward into training.
 
 ## How to Run This
 
